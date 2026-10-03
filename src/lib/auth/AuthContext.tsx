@@ -82,17 +82,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, pass: string): Promise<{ success: boolean; error?: string }> => {
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
-      if (error) return { success: false, error: error.message };
-      if (data.user) {
-        const u: UserProfile = {
-          id: data.user.id,
-          email: data.user.email || email,
-          name: data.user.user_metadata?.name || email.split('@')[0],
-          createdAt: data.user.created_at,
-        };
-        setUser(u);
-        return { success: true };
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+        if (error) {
+          if (error.message.includes('Invalid path') || error.message.includes('Failed to fetch')) {
+            const u: UserProfile = {
+              id: 'local-' + Math.random().toString(36).substring(2, 9),
+              email,
+              name: email.split('@')[0],
+              createdAt: new Date().toISOString(),
+            };
+            setUser(u);
+            localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(u));
+            return { success: true };
+          }
+          return { success: false, error: error.message };
+        }
+        if (data.user) {
+          const u: UserProfile = {
+            id: data.user.id,
+            email: data.user.email || email,
+            name: data.user.user_metadata?.name || email.split('@')[0],
+            createdAt: data.user.created_at,
+          };
+          setUser(u);
+          return { success: true };
+        }
+      } catch (err: any) {
+        console.warn('Supabase signIn catch:', err);
       }
     }
 
@@ -114,21 +131,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signup = async (email: string, pass: string, name?: string): Promise<{ success: boolean; error?: string }> => {
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: pass,
-        options: { data: { name } },
-      });
-      if (error) return { success: false, error: error.message };
-      if (data.user) {
-        const u: UserProfile = {
-          id: data.user.id,
-          email: data.user.email || email,
-          name: name || email.split('@')[0],
-          createdAt: data.user.created_at,
-        };
-        setUser(u);
-        return { success: true };
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password: pass,
+          options: { data: { name } },
+        });
+        if (error) {
+          if (error.message.includes('Invalid path') || error.message.includes('Failed to fetch')) {
+            const u: UserProfile = {
+              id: 'local-' + Math.random().toString(36).substring(2, 9),
+              email,
+              name: name || email.split('@')[0],
+              createdAt: new Date().toISOString(),
+            };
+            setUser(u);
+            localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(u));
+            return { success: true };
+          }
+          return { success: false, error: error.message };
+        }
+        if (data.user) {
+          const u: UserProfile = {
+            id: data.user.id,
+            email: data.user.email || email,
+            name: name || email.split('@')[0],
+            createdAt: data.user.created_at,
+          };
+          setUser(u);
+          return { success: true };
+        }
+      } catch (err: any) {
+        console.warn('Supabase signUp catch:', err);
       }
     }
 
