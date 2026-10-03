@@ -1,12 +1,11 @@
 import express, { Request, Response } from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
-import { sanitizeContent } from './src/lib/security/sanitizer.ts';
-import { analyzeUrlCharacteristics } from './src/lib/security/urlAnalyzer.ts';
-import { THREAT_LIBRARY_ITEMS } from './src/lib/data/threatLibraryData.ts';
-import { SIMULATOR_QUESTIONS } from './src/lib/data/simulatorData.ts';
+import { sanitizeContent } from './src/lib/security/sanitizer';
+import { analyzeUrlCharacteristics } from './src/lib/security/urlAnalyzer';
+import { THREAT_LIBRARY_ITEMS } from './src/lib/data/threatLibraryData';
+import { SIMULATOR_QUESTIONS } from './src/lib/data/simulatorData';
 
 dotenv.config();
 
@@ -512,6 +511,7 @@ async function startServer() {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
   } else {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

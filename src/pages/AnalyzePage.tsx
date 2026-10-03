@@ -53,32 +53,46 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ initialTab = 'message'
     return true;
   };
 
+  async function safeFetchThreatAssessment(
+    endpoint: string,
+    payload: any,
+    fallbackFn: () => ThreatAssessment
+  ): Promise<ThreatAssessment> {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        return fallbackFn();
+      }
+
+      if (res.ok && json && typeof json.riskScore === 'number') {
+        return json as ThreatAssessment;
+      }
+
+      return fallbackFn();
+    } catch {
+      return fallbackFn();
+    }
+  }
+
   const handleAnalyzeMessage = async (message: string) => {
     if (!checkGuestLimit()) return;
     setLoading(true);
     setError(null);
     try {
-      let data: ThreatAssessment;
-      try {
-        const res = await fetch('/api/analyze/message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message }),
-        });
-        const contentType = res.headers.get('content-type') || '';
-        if (res.ok && contentType.includes('application/json')) {
-          data = await res.json();
-        } else if (!res.ok && contentType.includes('application/json')) {
-          const errData = await res.json();
-          throw new Error(errData.error || 'Server reported an issue analyzing message.');
-        } else {
-          // If server returned non-JSON (e.g. Vercel static 404 rewrite)
-          data = analyzeMessageLocally(message);
-        }
-      } catch (networkErr: any) {
-        // Fall back gracefully to local heuristic analyzer
-        data = analyzeMessageLocally(message);
-      }
+      const data = await safeFetchThreatAssessment(
+        '/api/analyze/message',
+        { message },
+        () => analyzeMessageLocally(message)
+      );
 
       data.id = data.id || 'scan-' + Date.now();
       data.createdAt = data.createdAt || new Date().toISOString();
@@ -86,8 +100,10 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ initialTab = 'message'
       setResult(data);
       saveLocalHistoryItem(data);
       if (!user) incrementGuestAnalysisCount();
-    } catch (err: any) {
-      setError(err.message || 'Unable to analyze message. Please try again.');
+    } catch {
+      const fallback = analyzeMessageLocally(message);
+      setResult(fallback);
+      saveLocalHistoryItem(fallback);
     } finally {
       setLoading(false);
     }
@@ -103,25 +119,11 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ initialTab = 'message'
     setLoading(true);
     setError(null);
     try {
-      let data: ThreatAssessment;
-      try {
-        const res = await fetch('/api/analyze/email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const contentType = res.headers.get('content-type') || '';
-        if (res.ok && contentType.includes('application/json')) {
-          data = await res.json();
-        } else if (!res.ok && contentType.includes('application/json')) {
-          const errData = await res.json();
-          throw new Error(errData.error || 'Server reported an issue analyzing email.');
-        } else {
-          data = analyzeEmailLocally(payload);
-        }
-      } catch (networkErr) {
-        data = analyzeEmailLocally(payload);
-      }
+      const data = await safeFetchThreatAssessment(
+        '/api/analyze/email',
+        payload,
+        () => analyzeEmailLocally(payload)
+      );
 
       data.id = data.id || 'scan-' + Date.now();
       data.createdAt = data.createdAt || new Date().toISOString();
@@ -129,8 +131,10 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ initialTab = 'message'
       setResult(data);
       saveLocalHistoryItem(data);
       if (!user) incrementGuestAnalysisCount();
-    } catch (err: any) {
-      setError(err.message || 'Unable to analyze email.');
+    } catch {
+      const fallback = analyzeEmailLocally(payload);
+      setResult(fallback);
+      saveLocalHistoryItem(fallback);
     } finally {
       setLoading(false);
     }
@@ -141,25 +145,11 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ initialTab = 'message'
     setLoading(true);
     setError(null);
     try {
-      let data: ThreatAssessment;
-      try {
-        const res = await fetch('/api/analyze/url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url }),
-        });
-        const contentType = res.headers.get('content-type') || '';
-        if (res.ok && contentType.includes('application/json')) {
-          data = await res.json();
-        } else if (!res.ok && contentType.includes('application/json')) {
-          const errData = await res.json();
-          throw new Error(errData.error || 'Server reported an issue analyzing URL.');
-        } else {
-          data = analyzeUrlLocally(url);
-        }
-      } catch (networkErr) {
-        data = analyzeUrlLocally(url);
-      }
+      const data = await safeFetchThreatAssessment(
+        '/api/analyze/url',
+        { url },
+        () => analyzeUrlLocally(url)
+      );
 
       data.id = data.id || 'scan-' + Date.now();
       data.createdAt = data.createdAt || new Date().toISOString();
@@ -167,8 +157,10 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ initialTab = 'message'
       setResult(data);
       saveLocalHistoryItem(data);
       if (!user) incrementGuestAnalysisCount();
-    } catch (err: any) {
-      setError(err.message || 'Unable to inspect URL.');
+    } catch {
+      const fallback = analyzeUrlLocally(url);
+      setResult(fallback);
+      saveLocalHistoryItem(fallback);
     } finally {
       setLoading(false);
     }
@@ -183,25 +175,11 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ initialTab = 'message'
     setLoading(true);
     setError(null);
     try {
-      let data: ThreatAssessment;
-      try {
-        const res = await fetch('/api/analyze/payment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const contentType = res.headers.get('content-type') || '';
-        if (res.ok && contentType.includes('application/json')) {
-          data = await res.json();
-        } else if (!res.ok && contentType.includes('application/json')) {
-          const errData = await res.json();
-          throw new Error(errData.error || 'Server reported an issue analyzing payment.');
-        } else {
-          data = analyzePaymentLocally(payload);
-        }
-      } catch (networkErr) {
-        data = analyzePaymentLocally(payload);
-      }
+      const data = await safeFetchThreatAssessment(
+        '/api/analyze/payment',
+        payload,
+        () => analyzePaymentLocally(payload)
+      );
 
       data.id = data.id || 'scan-' + Date.now();
       data.createdAt = data.createdAt || new Date().toISOString();
@@ -209,8 +187,10 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ initialTab = 'message'
       setResult(data);
       saveLocalHistoryItem(data);
       if (!user) incrementGuestAnalysisCount();
-    } catch (err: any) {
-      setError(err.message || 'Unable to inspect payment request.');
+    } catch {
+      const fallback = analyzePaymentLocally(payload);
+      setResult(fallback);
+      saveLocalHistoryItem(fallback);
     } finally {
       setLoading(false);
     }
