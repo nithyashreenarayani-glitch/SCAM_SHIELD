@@ -22,6 +22,12 @@ import {
   getGuestAnalysisCount,
   incrementGuestAnalysisCount,
 } from '../lib/storage/historyStorage';
+import {
+  analyzeMessageLocally,
+  analyzeEmailLocally,
+  analyzeUrlLocally,
+  analyzePaymentLocally,
+} from '../lib/security/fallbackAnalyzer';
 
 interface AnalyzePageProps {
   initialTab?: AnalysisType;
@@ -52,23 +58,36 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ initialTab = 'message'
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/analyze/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to analyze message.');
+      let data: ThreatAssessment;
+      try {
+        const res = await fetch('/api/analyze/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message }),
+        });
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
+          data = await res.json();
+        } else if (!res.ok && contentType.includes('application/json')) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Server reported an issue analyzing message.');
+        } else {
+          // If server returned non-JSON (e.g. Vercel static 404 rewrite)
+          data = analyzeMessageLocally(message);
+        }
+      } catch (networkErr: any) {
+        // Fall back gracefully to local heuristic analyzer
+        data = analyzeMessageLocally(message);
       }
-      data.id = 'scan-' + Date.now();
-      data.createdAt = new Date().toISOString();
+
+      data.id = data.id || 'scan-' + Date.now();
+      data.createdAt = data.createdAt || new Date().toISOString();
       data.analysisType = 'message';
       setResult(data);
       saveLocalHistoryItem(data);
       if (!user) incrementGuestAnalysisCount();
     } catch (err: any) {
-      setError(err.message || 'Unable to connect to analysis engine. Please try again.');
+      setError(err.message || 'Unable to analyze message. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -84,17 +103,28 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ initialTab = 'message'
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/analyze/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to analyze email.');
+      let data: ThreatAssessment;
+      try {
+        const res = await fetch('/api/analyze/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
+          data = await res.json();
+        } else if (!res.ok && contentType.includes('application/json')) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Server reported an issue analyzing email.');
+        } else {
+          data = analyzeEmailLocally(payload);
+        }
+      } catch (networkErr) {
+        data = analyzeEmailLocally(payload);
       }
-      data.id = 'scan-' + Date.now();
-      data.createdAt = new Date().toISOString();
+
+      data.id = data.id || 'scan-' + Date.now();
+      data.createdAt = data.createdAt || new Date().toISOString();
       data.analysisType = 'email';
       setResult(data);
       saveLocalHistoryItem(data);
@@ -111,17 +141,28 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ initialTab = 'message'
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/analyze/url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to inspect URL.');
+      let data: ThreatAssessment;
+      try {
+        const res = await fetch('/api/analyze/url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
+          data = await res.json();
+        } else if (!res.ok && contentType.includes('application/json')) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Server reported an issue analyzing URL.');
+        } else {
+          data = analyzeUrlLocally(url);
+        }
+      } catch (networkErr) {
+        data = analyzeUrlLocally(url);
       }
-      data.id = 'scan-' + Date.now();
-      data.createdAt = new Date().toISOString();
+
+      data.id = data.id || 'scan-' + Date.now();
+      data.createdAt = data.createdAt || new Date().toISOString();
       data.analysisType = 'url';
       setResult(data);
       saveLocalHistoryItem(data);
@@ -142,17 +183,28 @@ export const AnalyzePage: React.FC<AnalyzePageProps> = ({ initialTab = 'message'
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/analyze/payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to inspect payment request.');
+      let data: ThreatAssessment;
+      try {
+        const res = await fetch('/api/analyze/payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
+          data = await res.json();
+        } else if (!res.ok && contentType.includes('application/json')) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Server reported an issue analyzing payment.');
+        } else {
+          data = analyzePaymentLocally(payload);
+        }
+      } catch (networkErr) {
+        data = analyzePaymentLocally(payload);
       }
-      data.id = 'scan-' + Date.now();
-      data.createdAt = new Date().toISOString();
+
+      data.id = data.id || 'scan-' + Date.now();
+      data.createdAt = data.createdAt || new Date().toISOString();
       data.analysisType = 'payment';
       setResult(data);
       saveLocalHistoryItem(data);

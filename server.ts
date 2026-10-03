@@ -524,4 +524,9 @@ async function startServer() {
   });
 }
 
-startServer();
+// Only bind listener in standalone / AI Studio container, not inside Vercel serverless functions
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
